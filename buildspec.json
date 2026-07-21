@@ -1,0 +1,41 @@
+{
+    "dependencies": {
+        "obs-studio": {
+            "version": "31.1.1",
+            "baseUrl": "https://github.com/obsproject/obs-studio/archive/refs/tags",
+            "label": "OBS sources",
+            "hashes": {
+                "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
+            }
+        },
+        "prebuilt": {
+            "version": "2025-07-11",
+            "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+            "label": "Pre-Built obs-deps",
+            "hashes": {
+                "windows-x64": "c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7"
+            }
+        },
+        "qt6": {
+            "version": "2025-02-04",
+            "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+            "label": "Pre-Built Qt6",
+            "hashes": {
+                "windows-x64": "cf6a5223bfea04dccec3bbfbdcdc964933404fc3eda9c3f374bc4ab8c98d8c7e"
+            }
+        }
+    },
+    "platformConfig": {
+        "macos": {
+            "bundleId": "com.vaninollc.obs-soundboard-censor"
+        }
+    },
+    "name": "obs-soundboard-censor",
+    "version": "1.0.0",
+    "author": "Alex Vanino",
+    "website": "https://github.com/vaninollc/obs-soundboard-censor",
+    "email": "alex@vaninollc.com",
+    "uuids": {
+        "windowsApp": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    }
+}

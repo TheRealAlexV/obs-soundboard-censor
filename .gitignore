@@ -1,0 +1,10 @@
+build_x64/
+build/
+*.dll
+*.pdb
+*.exp
+*.lib
+*.obj
+*.ilk
+.vs/
+.DS_Store
