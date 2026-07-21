@@ -1,0 +1,53 @@
+;
+; Inno Setup script for obs-soundboard-censor
+; Template processed by CMake: @VAR@ placeholders replaced at configure time
+;
+
+#define AppName       "@PROJECT_NAME@"
+#define AppVersion    "@PROJECT_VERSION@"
+#define AppPublisher  "@PROJECT_AUTHOR@"
+#define AppURL        "@PROJECT_URL@"
+
+[Setup]
+AppId={{A3F8C6D2-7B1E-4F29-9E45-2D81C5F0B6E3}
+AppName={#AppName}
+AppVerName={#AppName} {#AppVersion}
+AppVersion={#AppVersion}
+AppPublisher={#AppPublisher}
+AppPublisherURL={#AppURL}
+AppSupportURL={#AppURL}
+AppUpdatesURL={#AppURL}
+DefaultDirName={code:GetOBSDir}
+DisableDirPage=yes
+DisableProgramGroupPage=yes
+OutputDir=@CMAKE_CURRENT_BINARY_DIR@/package
+OutputBaseFilename={#AppName}-{#AppVersion}-Windows-Installer
+Compression=lzma2/max
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=admin
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Files]
+Source: "@CMAKE_CURRENT_BINARY_DIR@/release/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Code]
+function GetOBSDir(Param: string): string;
+var
+  OBSRegPath: string;
+begin
+  OBSRegPath := 'SOFTWARE\OBS Studio';
+  if RegQueryStringValue(HKLM32, OBSRegPath, '', Result) then
+  begin
+    if DirExists(Result) then
+      Exit;
+  end;
+
+  if IsWin64 then
+    Result := ExpandConstant('{pf64}\obs-studio')
+  else
+    Result := ExpandConstant('{pf32}\obs-studio');
+end;
