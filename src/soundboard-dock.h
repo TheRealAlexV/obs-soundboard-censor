@@ -32,6 +32,7 @@ struct SoundEntry {
 	QLabel *nameLabel = nullptr;
 	QLabel *hotkeyLabel = nullptr;
 	obs_hotkey_id hotkeyId = 0;
+	void *hotkeyUserData = nullptr;
 	AudioDecoder decoder;
 	size_t playPosition = 0;
 	bool playing = false;
