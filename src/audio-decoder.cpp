@@ -1,9 +1,7 @@
 #include "audio-decoder.h"
 
-#include <windows.h>
 #include <obs-module.h>
 
-#ifdef _WIN32
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,7 +11,6 @@ extern "C" {
 #include <libavutil/opt.h>
 #ifdef __cplusplus
 }
-#endif
 #endif
 
 AudioDecoder::AudioDecoder() {}
@@ -27,7 +24,6 @@ bool AudioDecoder::load(const std::string &filepath)
 {
 	unload();
 
-#ifdef _WIN32
 	AVFormatContext *fmtCtx = nullptr;
 	if (avformat_open_input(&fmtCtx, filepath.c_str(), nullptr, nullptr) < 0) {
 		blog(LOG_WARNING, "[obs-soundboard-censor] Failed to open audio file: %s",
@@ -131,10 +127,6 @@ bool AudioDecoder::load(const std::string &filepath)
 
 	_loaded = (_samples.total_frames > 0);
 	return _loaded;
-#else
-	blog(LOG_WARNING, "[obs-soundboard-censor] Audio decoding not supported on this platform");
-	return false;
-#endif
 }
 
 void AudioDecoder::unload()
