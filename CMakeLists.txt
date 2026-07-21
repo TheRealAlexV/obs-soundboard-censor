@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 project(obs-soundboard-censor VERSION 1.0.0)
 
+include(GNUInstallDirs)
+
 set(PROJECT_AUTHOR "Alex Vanino")
 set(PROJECT_URL "https://github.com/TheRealAlexV/obs-soundboard-censor")
 
@@ -56,26 +58,10 @@ endif()
 
 install(TARGETS obs-soundboard-censor
     RUNTIME DESTINATION obs-plugins/64bit
-    LIBRARY DESTINATION obs-plugins/64bit)
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins)
 
 install(DIRECTORY data/
-    DESTINATION data/obs-plugins/obs-soundboard-censor)
-
-if(UNIX AND NOT APPLE)
-    set(PLUGIN_DEST "${CMAKE_INSTALL_PREFIX}/lib/obs-plugins")
-    set(DATA_DEST "${CMAKE_INSTALL_PREFIX}/share/obs/obs-plugins/obs-soundboard-censor")
-    install(TARGETS obs-soundboard-censor
-        LIBRARY DESTINATION "${PLUGIN_DEST}")
-    install(DIRECTORY data/
-        DESTINATION "${DATA_DEST}")
-elseif(APPLE)
-    set(PLUGIN_DEST "${CMAKE_INSTALL_PREFIX}/obs-plugins")
-    set(DATA_DEST "${CMAKE_INSTALL_PREFIX}/data/obs-plugins/obs-soundboard-censor")
-    install(TARGETS obs-soundboard-censor
-        LIBRARY DESTINATION "${PLUGIN_DEST}")
-    install(DIRECTORY data/
-        DESTINATION "${DATA_DEST}")
-endif()
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/obs/obs-plugins/obs-soundboard-censor)
 
 if(WIN32)
     set(RELEASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/release")

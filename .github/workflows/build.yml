@@ -40,10 +40,6 @@ jobs:
       - name: Build
         run: cmake --build build --parallel $(nproc)
 
-      - name: Install and stage
-        run: |
-          cmake --install build --prefix=build/install
-
       - name: Package
         run: |
           cmake --build build --target package
