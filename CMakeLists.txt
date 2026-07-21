@@ -19,7 +19,8 @@ find_package(Qt6 COMPONENTS Widgets Core REQUIRED)
 add_library(obs-soundboard-censor MODULE
     src/plugin-main.cpp
     src/audio-decoder.cpp
-    src/censor-filter.cpp)
+    src/censor-filter.cpp
+    src/soundboard-dock.cpp)
 
 target_link_libraries(obs-soundboard-censor PRIVATE
     OBS::libobs

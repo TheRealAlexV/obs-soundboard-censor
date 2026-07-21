@@ -11,9 +11,12 @@ An OBS Studio plugin that provides a **Censorship Audio Filter** (push-to-censor
 - Configurable bleep audio file (MP3, WAV, OGG, FLAC, etc.)
 - Adjustable bleep volume
 
-### Soundboard (coming soon)
-- Dockable Qt widget with play/stop buttons and volume sliders
-- Per-sound hotkey assignment
+### Soundboard
+- Dockable Qt widget (Docks → Soundboard)
+- Add audio files (MP3, WAV, OGG, FLAC, etc.)
+- Play/Stop toggle button per sound
+- Volume slider per sound
+- Global hotkey per sound (bind in Settings → Hotkeys)
 - Settings persistence across sessions
 
 ## Building

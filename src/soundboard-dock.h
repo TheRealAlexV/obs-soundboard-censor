@@ -1,5 +1,9 @@
 #pragma once
 
+#include <obs-module.h>
+#include <obs-frontend-api.h>
+#include <windows.h>
+
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QHBoxLayout>
@@ -14,13 +18,10 @@
 
 #include <string>
 #include <vector>
-#include <functional>
 
 #include "audio-decoder.h"
 
-typedef unsigned long long sb_hotkey_id;
-
-struct SBSoundEntry {
+struct SoundEntry {
 	std::string name;
 	std::string filepath;
 	int volume = 80;
@@ -28,7 +29,7 @@ struct SBSoundEntry {
 	QSlider *volumeSlider = nullptr;
 	QLabel *nameLabel = nullptr;
 	QLabel *hotkeyLabel = nullptr;
-	sb_hotkey_id hotkeyId = 0;
+	obs_hotkey_id hotkeyId = 0;
 	AudioDecoder decoder;
 	size_t playPosition = 0;
 	bool playing = false;
@@ -44,12 +45,14 @@ public:
 	void saveSettings();
 	void loadSettings();
 
-	void registerHotkey(int index, sb_hotkey_id id);
-	void unregisterHotkey(int index);
-	int entryCount() const;
+	int entryCount() const { return (int)_entries.size(); }
+	SoundEntry &entryAt(int index);
 	const std::string &entryName(int index) const;
 
-	std::function<void(int, bool)> onHotkeyPressed;
+	void registerHotkey(int index, obs_hotkey_id id);
+	void unregisterHotkey(int index);
+
+	const std::vector<SoundEntry> &entries() const { return _entries; }
 
 private slots:
 	void addSound();
@@ -66,11 +69,6 @@ private:
 	QScrollArea *_scrollArea = nullptr;
 	QWidget *_scrollContent = nullptr;
 	QVBoxLayout *_entriesLayout = nullptr;
-	std::vector<SBSoundEntry> _entries;
+	std::vector<SoundEntry> _entries;
 	QTimer *_playbackTimer = nullptr;
 };
-
-extern "C" QWidget *create_soundboard_dock(QWidget *parent);
-extern "C" SoundboardDock *get_soundboard_dock(QWidget *w);
-extern "C" int soundboard_get_entry_count(SoundboardDock *dock);
-extern "C" const char *soundboard_get_entry_name(SoundboardDock *dock, int index);
