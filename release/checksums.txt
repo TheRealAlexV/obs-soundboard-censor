@@ -1,2 +1,0 @@
-78a27664b4cb9cc7a421d60d9e737a8d33006cf47899734361b9ebcbf9149ff7  obs-soundboard-censor-1.0.0-Windows-x64.zip
-8d31190490c42fb871df7d2b98fa544fbfb1386a5f9d702ad15732d3c86383f6  obs-soundboard-censor-1.0.0-Windows-Installer.exe

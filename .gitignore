@@ -8,3 +8,4 @@ build/
 *.ilk
 .vs/
 .DS_Store
+release/
