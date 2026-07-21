@@ -5,25 +5,40 @@
 #include <QtWidgets/QMessageBox>
 #include <util/platform.h>
 
+struct HotkeyCbData {
+	SoundboardDock *dock;
+	int index;
+};
+
 static void soundboard_hotkey_callback(void *data, obs_hotkey_id id,
 				       obs_hotkey_t *hotkey, bool pressed)
 {
 	UNUSED_PARAMETER(id);
 	UNUSED_PARAMETER(hotkey);
 
-	SoundEntry *entry = (SoundEntry *)data;
-	if (!entry)
+	HotkeyCbData *cb = (HotkeyCbData *)data;
+	if (!cb || !cb->dock)
 		return;
 
+	SoundboardDock *dock = cb->dock;
+	int idx = cb->index;
+
+	if (idx < 0 || idx >= (int)dock->_entries.size())
+		return;
+
+	SoundEntry &entry = dock->_entries[idx];
+
 	if (pressed) {
-		if (!entry->playing) {
-			entry->playPosition = 0;
-			entry->playing = true;
+		if (!entry.playing) {
+			entry.playPosition = 0;
+			entry.playing = true;
 		} else {
-			entry->playing = false;
+			entry.playing = false;
 		}
 	}
 }
+
+static std::vector<HotkeyCbData *> g_pending_free;
 
 SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
 {
@@ -42,8 +57,15 @@ SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
 SoundboardDock::~SoundboardDock()
 {
 	saveSettings();
-	for (auto &entry : _entries)
-		obs_hotkey_unregister(entry.hotkeyId);
+
+	for (auto &entry : _entries) {
+		if (entry.hotkeyId)
+			obs_hotkey_unregister(entry.hotkeyId);
+	}
+
+	for (auto *cb : g_pending_free)
+		delete cb;
+	g_pending_free.clear();
 }
 
 void SoundboardDock::createUI()
@@ -92,16 +114,21 @@ void SoundboardDock::addSound()
 		return;
 	}
 
-	char hotkeyName[256];
-	snprintf(hotkeyName, sizeof(hotkeyName), "Soundboard.Play.%s",
-		 entry.name.c_str());
-
-	entry.hotkeyId = obs_hotkey_register_frontend(
-		hotkeyName, entry.name.c_str(),
-		soundboard_hotkey_callback, &entry);
-
 	_entries.push_back(entry);
 	int idx = (int)_entries.size() - 1;
+
+	char hotkeyName[256];
+	snprintf(hotkeyName, sizeof(hotkeyName), "Soundboard.Play.%d.%s",
+		 idx, _entries[idx].name.c_str());
+
+	HotkeyCbData *cb = new HotkeyCbData();
+	cb->dock = this;
+	cb->index = idx;
+
+	_entries[idx].hotkeyId = obs_hotkey_register_frontend(
+		hotkeyName, _entries[idx].name.c_str(),
+		soundboard_hotkey_callback, cb);
+
 	updateEntryUI(idx);
 }
 
@@ -110,7 +137,8 @@ void SoundboardDock::removeSound(int index)
 	if (index < 0 || index >= (int)_entries.size())
 		return;
 
-	obs_hotkey_unregister(_entries[index].hotkeyId);
+	if (_entries[index].hotkeyId)
+		obs_hotkey_unregister(_entries[index].hotkeyId);
 
 	if (_entriesLayout->count() > index) {
 		QLayoutItem *item = _entriesLayout->takeAt(index);
@@ -120,6 +148,33 @@ void SoundboardDock::removeSound(int index)
 	}
 
 	_entries.erase(_entries.begin() + index);
+
+	for (int i = index; i < (int)_entries.size(); i++) {
+		if (_entries[i].hotkeyId) {
+			obs_hotkey_unregister(_entries[i].hotkeyId);
+
+			char hotkeyName[256];
+			snprintf(hotkeyName, sizeof(hotkeyName),
+				 "Soundboard.Play.%d.%s",
+				 i, _entries[i].name.c_str());
+
+			HotkeyCbData *cb = new HotkeyCbData();
+			cb->dock = this;
+			cb->index = i;
+
+			_entries[i].hotkeyId = obs_hotkey_register_frontend(
+				hotkeyName, _entries[i].name.c_str(),
+				soundboard_hotkey_callback, cb);
+		}
+
+		if (_entriesLayout->count() > i) {
+			QLayoutItem *item = _entriesLayout->takeAt(i);
+			if (item->widget())
+				item->widget()->deleteLater();
+			delete item;
+		}
+		updateEntryUI(i);
+	}
 }
 
 void SoundboardDock::playStopSound(int index)
@@ -246,16 +301,23 @@ void SoundboardDock::loadSettings()
 		if (!entry.filepath.empty())
 			entry.decoder.load(entry.filepath);
 
+		_entries.push_back(entry);
+		int idx = (int)_entries.size() - 1;
+
 		char hotkeyName[256];
 		snprintf(hotkeyName, sizeof(hotkeyName),
-			 "Soundboard.Play.%s", entry.name.c_str());
+			 "Soundboard.Play.%d.%s",
+			 idx, _entries[idx].name.c_str());
 
-		entry.hotkeyId = obs_hotkey_register_frontend(
-			hotkeyName, entry.name.c_str(),
-			soundboard_hotkey_callback, &entry);
+		HotkeyCbData *cb = new HotkeyCbData();
+		cb->dock = this;
+		cb->index = idx;
 
-		_entries.push_back(entry);
-		updateEntryUI(i);
+		_entries[idx].hotkeyId = obs_hotkey_register_frontend(
+			hotkeyName, _entries[idx].name.c_str(),
+			soundboard_hotkey_callback, cb);
+
+		updateEntryUI(idx);
 	}
 	settings.endArray();
 }
@@ -274,16 +336,4 @@ const std::string &SoundboardDock::entryName(int index) const
 	if (index < 0 || index >= (int)_entries.size())
 		return empty;
 	return _entries[index].name;
-}
-
-void SoundboardDock::registerHotkey(int index, obs_hotkey_id id)
-{
-	if (index >= 0 && index < (int)_entries.size())
-		_entries[index].hotkeyId = id;
-}
-
-void SoundboardDock::unregisterHotkey(int index)
-{
-	if (index >= 0 && index < (int)_entries.size())
-		_entries[index].hotkeyId = 0;
 }

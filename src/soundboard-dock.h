@@ -21,6 +21,8 @@
 
 #include "audio-decoder.h"
 
+class SoundboardDock;
+
 struct SoundEntry {
 	std::string name;
 	std::string filepath;
@@ -49,10 +51,9 @@ public:
 	SoundEntry &entryAt(int index);
 	const std::string &entryName(int index) const;
 
-	void registerHotkey(int index, obs_hotkey_id id);
-	void unregisterHotkey(int index);
-
 	const std::vector<SoundEntry> &entries() const { return _entries; }
+
+	std::vector<SoundEntry> _entries;
 
 private slots:
 	void addSound();
@@ -69,6 +70,5 @@ private:
 	QScrollArea *_scrollArea = nullptr;
 	QWidget *_scrollContent = nullptr;
 	QVBoxLayout *_entriesLayout = nullptr;
-	std::vector<SoundEntry> _entries;
 	QTimer *_playbackTimer = nullptr;
 };

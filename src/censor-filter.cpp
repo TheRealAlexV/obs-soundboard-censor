@@ -70,14 +70,10 @@ static void *censor_filter_create(obs_data_t *settings, obs_source_t *filter)
 
 	pthread_mutex_init(&cfd->mutex, nullptr);
 
-	cfd->hotkey_id = obs_hotkey_register_frontend(
+	cfd->hotkey_id = obs_hotkey_register_source(filter,
 		"censor_filter_hotkey",
 		obs_module_text("HoldToCensor"),
 		censor_hotkey_pressed, cfd);
-
-	obs_hotkey_register_source(filter, "censor_filter_hotkey",
-				    obs_module_text("HoldToCensor"),
-				    censor_hotkey_pressed, cfd);
 
 	censor_filter_update(cfd, settings);
 	return cfd;
