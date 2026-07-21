@@ -90,6 +90,11 @@ SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
 
 	createUI();
 	loadSettings();
+
+	_mediaTimer = new QTimer(this);
+	connect(_mediaTimer, &QTimer::timeout, this,
+		&SoundboardDock::checkMediaEnded);
+	_mediaTimer->start(100);
 }
 
 SoundboardDock::~SoundboardDock()
@@ -326,6 +331,21 @@ void SoundboardDock::loadSettings()
 		updateEntryUI(idx);
 	}
 	settings.endArray();
+}
+
+void SoundboardDock::checkMediaEnded()
+{
+	for (auto &entry : _entries) {
+		if (!entry.playing || !entry.mediaSource)
+			continue;
+		enum obs_media_state state =
+			obs_source_media_get_state(entry.mediaSource);
+		if (state == OBS_MEDIA_STATE_ENDED) {
+			entry.playing = false;
+			if (entry.playButton)
+				entry.playButton->setChecked(false);
+		}
+	}
 }
 
 SoundEntry &SoundboardDock::entryAt(int index)

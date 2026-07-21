@@ -60,6 +60,7 @@ private slots:
 	void addSound();
 	void removeSound(int index);
 	void setVolume(int index, int volume);
+	void checkMediaEnded();
 
 private:
 	void createUI();
@@ -71,4 +72,5 @@ private:
 	QScrollArea *_scrollArea = nullptr;
 	QWidget *_scrollContent = nullptr;
 	QVBoxLayout *_entriesLayout = nullptr;
+	QTimer *_mediaTimer = nullptr;
 };
