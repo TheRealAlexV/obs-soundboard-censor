@@ -19,22 +19,19 @@
 #include <string>
 #include <vector>
 
-#include "audio-decoder.h"
-
 class SoundboardDock;
 
 struct SoundEntry {
 	std::string name;
 	std::string filepath;
 	int volume = 80;
+	obs_source_t *mediaSource = nullptr;
 	QPushButton *playButton = nullptr;
 	QSlider *volumeSlider = nullptr;
 	QLabel *nameLabel = nullptr;
 	QLabel *hotkeyLabel = nullptr;
 	obs_hotkey_id hotkeyId = 0;
 	void *hotkeyUserData = nullptr;
-	AudioDecoder decoder;
-	size_t playPosition = 0;
 	bool playing = false;
 };
 
@@ -56,20 +53,22 @@ public:
 
 	std::vector<SoundEntry> _entries;
 
+public slots:
+	void playStopSound(int index);
+
 private slots:
 	void addSound();
 	void removeSound(int index);
-	void playStopSound(int index);
 	void setVolume(int index, int volume);
 
 private:
 	void createUI();
 	void updateEntryUI(int index);
-	void onPlaybackTick();
+
+	obs_source_t *create_media_source(const std::string &filepath);
 
 	QVBoxLayout *_mainLayout = nullptr;
 	QScrollArea *_scrollArea = nullptr;
 	QWidget *_scrollContent = nullptr;
 	QVBoxLayout *_entriesLayout = nullptr;
-	QTimer *_playbackTimer = nullptr;
 };

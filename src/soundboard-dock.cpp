@@ -26,16 +26,8 @@ static void soundboard_hotkey_callback(void *data, obs_hotkey_id id,
 	if (idx < 0 || idx >= (int)dock->_entries.size())
 		return;
 
-	SoundEntry &entry = dock->_entries[idx];
-
-	if (pressed) {
-		if (!entry.playing) {
-			entry.playPosition = 0;
-			entry.playing = true;
-		} else {
-			entry.playing = false;
-		}
-	}
+	if (pressed)
+		dock->playStopSound(idx);
 }
 
 static void register_entry_hotkey(SoundboardDock *dock, int index)
@@ -75,6 +67,22 @@ static void unregister_entry_hotkey(SoundEntry &entry)
 	}
 }
 
+obs_source_t *SoundboardDock::create_media_source(const std::string &filepath)
+{
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_string(settings, "local_file", filepath.c_str());
+	obs_data_set_bool(settings, "is_local_file", true);
+	obs_data_set_bool(settings, "looping", false);
+	obs_data_set_bool(settings, "restart_on_activate", false);
+
+	obs_source_t *source = obs_source_create("ffmpeg_source",
+						 filepath.c_str(),
+						 settings, nullptr);
+	obs_data_release(settings);
+
+	return source;
+}
+
 SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
 {
 	setObjectName("soundboardDock");
@@ -82,19 +90,17 @@ SoundboardDock::SoundboardDock(QWidget *parent) : QWidget(parent)
 
 	createUI();
 	loadSettings();
-
-	_playbackTimer = new QTimer(this);
-	connect(_playbackTimer, &QTimer::timeout, this,
-		&SoundboardDock::onPlaybackTick);
-	_playbackTimer->start(30);
 }
 
 SoundboardDock::~SoundboardDock()
 {
 	saveSettings();
 
-	for (auto &entry : _entries)
+	for (auto &entry : _entries) {
 		unregister_entry_hotkey(entry);
+		if (entry.mediaSource)
+			obs_source_release(entry.mediaSource);
+	}
 }
 
 void SoundboardDock::createUI()
@@ -133,21 +139,22 @@ void SoundboardDock::addSound()
 	entry.name = QFileInfo(file).baseName().toStdString();
 	entry.filepath = file.toStdString();
 	entry.volume = 80;
-	entry.playPosition = 0;
 	entry.playing = false;
 
-	if (!entry.decoder.load(entry.filepath)) {
+	entry.mediaSource = create_media_source(entry.filepath);
+	if (!entry.mediaSource) {
 		QMessageBox::warning(this,
 				     obs_module_text("Error"),
 				     obs_module_text("FailedToLoadAudio"));
 		return;
 	}
 
+	obs_source_set_volume(entry.mediaSource, entry.volume / 100.0f);
+
 	_entries.push_back(entry);
 	int idx = (int)_entries.size() - 1;
 
 	register_entry_hotkey(this, idx);
-
 	updateEntryUI(idx);
 }
 
@@ -157,6 +164,8 @@ void SoundboardDock::removeSound(int index)
 		return;
 
 	unregister_entry_hotkey(_entries[index]);
+	if (_entries[index].mediaSource)
+		obs_source_release(_entries[index].mediaSource);
 
 	if (_entriesLayout->count() > index) {
 		QLayoutItem *item = _entriesLayout->takeAt(index);
@@ -169,7 +178,6 @@ void SoundboardDock::removeSound(int index)
 
 	for (int i = index; i < (int)_entries.size(); i++) {
 		register_entry_hotkey(this, i);
-
 		if (_entriesLayout->count() > i) {
 			QLayoutItem *item = _entriesLayout->takeAt(i);
 			if (item->widget())
@@ -186,11 +194,19 @@ void SoundboardDock::playStopSound(int index)
 		return;
 
 	auto &entry = _entries[index];
+	if (!entry.mediaSource)
+		return;
+
 	if (entry.playing) {
+		obs_source_media_stop(entry.mediaSource);
 		entry.playing = false;
+		if (entry.playButton)
+			entry.playButton->setChecked(false);
 	} else {
-		entry.playPosition = 0;
+		obs_source_media_restart(entry.mediaSource);
 		entry.playing = true;
+		if (entry.playButton)
+			entry.playButton->setChecked(true);
 	}
 }
 
@@ -198,7 +214,11 @@ void SoundboardDock::setVolume(int index, int volume)
 {
 	if (index < 0 || index >= (int)_entries.size())
 		return;
-	_entries[index].volume = volume;
+
+	auto &entry = _entries[index];
+	entry.volume = volume;
+	if (entry.mediaSource)
+		obs_source_set_volume(entry.mediaSource, volume / 100.0f);
 }
 
 void SoundboardDock::updateEntryUI(int index)
@@ -214,26 +234,32 @@ void SoundboardDock::updateEntryUI(int index)
 	QVBoxLayout *frameLayout = new QVBoxLayout(frame);
 	frameLayout->setContentsMargins(6, 6, 6, 6);
 
-	entry.nameLabel = new QLabel(QString::fromStdString(entry.name), frame);
+	entry.nameLabel =
+		new QLabel(QString::fromStdString(entry.name), frame);
 	entry.nameLabel->setStyleSheet("font-weight: bold;");
 	frameLayout->addWidget(entry.nameLabel);
 
 	QHBoxLayout *controlRow = new QHBoxLayout();
 
-	entry.playButton = new QPushButton(
-		obs_module_text("Play"), frame);
+	entry.playButton =
+		new QPushButton(obs_module_text("Play"), frame);
 	entry.playButton->setCheckable(true);
-	entry.playButton->connect(entry.playButton, &QPushButton::clicked, this,
-				  [this, index]() { playStopSound(index); });
+	entry.playButton->setChecked(entry.playing);
+	entry.playButton->connect(entry.playButton, &QPushButton::clicked,
+				  this, [this, index]() {
+					  playStopSound(index);
+				  });
 	controlRow->addWidget(entry.playButton);
 
 	entry.volumeSlider = new QSlider(Qt::Horizontal, frame);
 	entry.volumeSlider->setRange(0, 100);
 	entry.volumeSlider->setValue(entry.volume);
 	entry.volumeSlider->setMaximumWidth(120);
-	entry.volumeSlider->connect(entry.volumeSlider, &QSlider::valueChanged,
-				    this,
-				    [this, index](int val) { setVolume(index, val); });
+	entry.volumeSlider->connect(entry.volumeSlider,
+				    &QSlider::valueChanged, this,
+				    [this, index](int val) {
+					    setVolume(index, val);
+				    });
 	controlRow->addWidget(entry.volumeSlider);
 
 	QPushButton *removeBtn = new QPushButton("X", frame);
@@ -249,24 +275,11 @@ void SoundboardDock::updateEntryUI(int index)
 		QString("Hotkey: ") +
 			QString::fromStdString(entry.name),
 		frame);
-	entry.hotkeyLabel->setStyleSheet("color: gray; font-size: 11px;");
+	entry.hotkeyLabel->setStyleSheet(
+		"color: gray; font-size: 11px;");
 	frameLayout->addWidget(entry.hotkeyLabel);
 
 	_entriesLayout->insertWidget(index, frame);
-}
-
-void SoundboardDock::onPlaybackTick()
-{
-	for (auto &entry : _entries) {
-		if (!entry.playing || !entry.decoder.loaded())
-			continue;
-		const AudioSamples &samples = entry.decoder.samples();
-		size_t totalFrames = samples.total_frames;
-		if (totalFrames == 0)
-			continue;
-		entry.playPosition =
-			(entry.playPosition + 1) % totalFrames;
-	}
 }
 
 void SoundboardDock::saveSettings()
@@ -298,16 +311,18 @@ void SoundboardDock::loadSettings()
 		entry.filepath =
 			settings.value("filepath").toString().toStdString();
 		entry.volume = settings.value("volume", 80).toInt();
-		entry.playPosition = 0;
 		entry.playing = false;
 
 		if (!entry.filepath.empty())
-			entry.decoder.load(entry.filepath);
+			entry.mediaSource = create_media_source(entry.filepath);
+
+		if (entry.mediaSource)
+			obs_source_set_volume(entry.mediaSource,
+					      entry.volume / 100.0f);
 
 		_entries.push_back(entry);
 		int idx = (int)_entries.size() - 1;
 		register_entry_hotkey(this, idx);
-
 		updateEntryUI(idx);
 	}
 	settings.endArray();
