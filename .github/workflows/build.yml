@@ -1,0 +1,178 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PLUGIN_NAME: obs-soundboard-censor
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OBS development environment
+        id: obsdeps
+        uses: norihiro/obs-studio-devel-action@v2
+        with:
+          obs: '31'
+          qt: true
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            ${{ steps.obsdeps.outputs.PLUGIN_CMAKE_OPTIONS }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Install and stage
+        run: |
+          cmake --install build --prefix=build/install
+
+      - name: Package
+        run: |
+          cmake --build build --target package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-linux-x86_64
+          path: build/package/*.tar.gz
+
+  macos-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OBS development environment
+        id: obsdeps
+        uses: norihiro/obs-studio-devel-action@v2
+        with:
+          obs: '31'
+          qt: true
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            ${{ steps.obsdeps.outputs.PLUGIN_CMAKE_OPTIONS }}
+
+      - name: Build
+        run: cmake --build build --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Package
+        run: |
+          cmake --build build --target package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-macos-x86_64
+          path: build/package/*.tar.gz
+
+  windows-build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OBS development environment
+        id: obsdeps
+        uses: norihiro/obs-studio-devel-action@v2
+        with:
+          obs: '31'
+          qt: true
+
+      - name: Configure
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_SYSTEM_VERSION=10.0.18363.657 `
+            ${{ steps.obsdeps.outputs.PLUGIN_CMAKE_OPTIONS_PS }}
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      - name: Install Inno Setup
+        run: |
+          curl.exe -L -o $env:RUNNER_TEMP\innosetup.exe `
+            https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe
+          Start-Process -Wait -FilePath $env:RUNNER_TEMP\innosetup.exe `
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR=C:\InnoSetup6'
+
+      - name: Stage release files
+        run: cmake --build build --config RelWithDebInfo --target stage-release
+
+      - name: Package ZIP
+        run: cmake --build build --config RelWithDebInfo --target package
+
+      - name: Package Installer
+        run: cmake --build build --config RelWithDebInfo --target installer
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-windows-x64
+          path: |
+            build/package/*.zip
+            build/package/*.exe
+
+  release:
+    needs: [linux-build, macos-build, windows-build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Generate checksums
+        run: |
+          find . -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.exe' \) \
+            -exec sha256sum {} \; > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            *-linux-*/*
+            *-macos-*/*
+            *-windows-*/*
+            checksums.txt
+          body: |
+            ## OBS Soundboard & Censor Plugin v${{ github.ref_name }}
+
+            ### Censorship Audio Filter
+            - Add "Censorship Filter" to any audio source
+            - Hold-to-Censor hotkey mutes source and plays configurable bleep
+            - Supports MP3, WAV, OGG, FLAC, AAC, M4A
+
+            ### Soundboard Dock
+            - Docks → Soundboard
+            - Add/remove audio files with play/stop and volume controls
+            - Per-sound global hotkeys
+            - Settings persist across sessions
+
+            ### Platform Packages
+            | Platform | File |
+            |----------|------|
+            | Windows | `obs-soundboard-censor-win64.zip` (manual) or `.exe` (installer) |
+            | Linux | `obs-soundboard-censor-linux-x86_64.tar.gz` |
+            | macOS | `obs-soundboard-censor-macos-x86_64.tar.gz` |
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
